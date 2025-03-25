@@ -74,7 +74,7 @@ func Start(eventual *Eventual) error {
 	go func() {
 		defer wg.Done()
 		log.Print("Starting cron job...")
-		if _, err := cron.StartCronJob(eventual.Db, eventual.RabbitMQ); err != nil {
+		if _, err := cron.StartCronJob(eventual.Db, eventual.RabbitMQ, errChan); err != nil {
 			fmt.Printf("err: %+v\n", err)
 			errChan <- fmt.Errorf("[ERROR] Running cron job: %v", err)
 		}

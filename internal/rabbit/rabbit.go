@@ -6,6 +6,7 @@ import (
 	"eventual/internal/db"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/streadway/amqp"
 	"gorm.io/gorm"
@@ -62,22 +63,41 @@ func (r *RabbitMQ) decodeJSONMessage(msg amqp.Delivery, event *db.EventDto) erro
 	return nil
 }
 
-// PublishMessage publishes a message to the queue
-func (r *RabbitMQ) PublishMessage(message string) {
-	err := r.Channel.Publish(
-		"",          // exchange
-		r.QueueName, // routing key
-		false,       // mandatory
-		false,       // immediate
-		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        []byte(message),
-		},
-	)
-	if err != nil {
-		log.Printf("Error publicando mensaje: %v", err)
+// PublishDbEvent publishes event.Message to event.Exchange
+func (r *RabbitMQ) PublishDbEvent(event db.Event, currentTime time.Time) error {
+	var delay int64
+	if event.TimesRemaining <= 0 {
+		return fmt.Errorf("event %d has no remaining times", event.ID)
 	}
-	log.Printf("Mensaje publicado en RabbitMQ: %s", message)
+	if len(event.DaySchedules) > 0 {
+		isToday := false
+		for _, schedule := range event.DaySchedules {
+			isToday = schedule.DayNumber == time.Weekday(currentTime.Day())
+			if isToday {
+				break
+			}
+		}
+		if !isToday {
+			return fmt.Errorf("event %d is not scheduled for today", event.ID)
+		}
+	}
+	if event.ExpectedAt.After(currentTime) {
+		delay = event.ExpectedAt.Sub(currentTime).Milliseconds()
+	}
+	if event.ExpectedClock.After(currentTime) {
+		delay = event.ExpectedClock.Sub(currentTime).Milliseconds()
+	}
+	headers := amqp.Table{}
+	if delay > 0 {
+		headers["x-delay"] = delay
+		log.Printf("[WARNING] Emitting event %d message with delay: %d ms", event.ID, delay)
+	}
+
+	err := r.Channel.Publish(event.Exchange, "", false, false, amqp.Publishing{
+		Body:    []byte(event.Message),
+		Headers: headers,
+	})
+	return err
 }
 
 func (r *RabbitMQ) ConfigureConsumer() (<-chan amqp.Delivery, error) {
@@ -99,13 +119,19 @@ func (r *RabbitMQ) ConfigureConsumer() (<-chan amqp.Delivery, error) {
 }
 
 func (r *RabbitMQ) ProcessEventMessage(msg amqp.Delivery, dbConnection *gorm.DB) error {
-	var event db.EventDto
+	event := db.EventDto{}
 	if err := r.decodeJSONMessage(msg, &event); err != nil {
 		msg.Nack(false, false)
 		return fmt.Errorf("[ERROR] While decoding JSON: %v", err)
 	}
 
-	if err := dbConnection.Create(&event).Error; err != nil {
+	modelInstance, err := db.Transform(&event)
+	if err != nil {
+		msg.Nack(false, false)
+		return fmt.Errorf("[ERROR] While transforming event to model: %v", err)
+	}
+
+	if err := dbConnection.Model(&db.Event{}).Create(modelInstance).Error; err != nil {
 		msg.Nack(false, false)
 		return fmt.Errorf("[ERROR] While saving event to database: %v", err)
 	}
