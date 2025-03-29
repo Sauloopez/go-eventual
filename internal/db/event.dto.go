@@ -2,6 +2,7 @@ package db
 
 import (
 	"errors"
+	"eventual/internal/utils"
 	"fmt"
 	"time"
 )
@@ -11,7 +12,7 @@ type EventDto struct {
 	Message       string // event message content
 	ExpectedAt    string // event expected time
 	Exchange      string // event RabbitMQ exchange name send to
-	DaySchedule   int8   // event day schedule
+	Days          []int8 // event days schedule
 	ExpectedClock string // event expected clock time
 	Times         int    // expected times to send event
 }
@@ -35,23 +36,28 @@ func Transform(dto *EventDto) (*Event, error) {
 	}
 
 	if dto.ExpectedAt != "" {
-		expectedDate, err := time.Parse("2006-01-02", dto.ExpectedAt)
+		expectedDate, err := time.Parse(time.DateOnly, dto.ExpectedAt)
 		if err != nil {
-			return nil, fmt.Errorf("expected at must be in format YYYY-MM-DD: %v", err)
+			return nil, fmt.Errorf("%v", err)
 		}
-		modelInstance.ExpectedAt = expectedDate
+		modelInstance.ExpectedAt = expectedDate.UnixMilli()
 	}
 
 	if dto.ExpectedClock != "" {
-		expectedClock, err := time.Parse("15:04", dto.ExpectedClock)
+		expectedClock, err := time.Parse(time.TimeOnly, dto.ExpectedClock)
 		if err != nil {
 			return nil, fmt.Errorf("expected clock must be in format HH:MM: %v", err)
 		}
-		modelInstance.ExpectedClock = expectedClock
+
+		modelInstance.ExpectedClock = utils.GetClockMs(expectedClock)
 	}
 
-	if dto.DaySchedule != 0 && dto.DaySchedule < 1 || dto.DaySchedule > 7 {
-		return nil, errors.New("day schedule must be between 1 and 7")
+	if len(dto.Days) != 0 {
+		for _, day := range dto.Days {
+			if day < 1 || day > 7 {
+				return nil, errors.New("day schedule must be between 1 and 7")
+			}
+		}
 	}
 
 	return &modelInstance, nil

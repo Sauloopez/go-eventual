@@ -63,12 +63,10 @@ func (r *RabbitMQ) decodeJSONMessage(msg amqp.Delivery, event *db.EventDto) erro
 	return nil
 }
 
-// PublishDbEvent publishes event.Message to event.Exchange
-func (r *RabbitMQ) PublishDbEvent(event db.Event, currentTime time.Time) error {
-	var delay int64
-	if event.TimesRemaining <= 0 {
-		return fmt.Errorf("event %d has no remaining times", event.ID)
-	}
+func GetDelayForEvent(event *db.Event, currentTime time.Time) (error, string) {
+	var delay string
+	currentMs := currentTime.UnixMilli()
+	clockMs := (currentTime.Hour()*3600 + currentTime.Minute()*60 + currentTime.Second()) * 1000
 	if len(event.DaySchedules) > 0 {
 		isToday := false
 		for _, schedule := range event.DaySchedules {
@@ -78,19 +76,28 @@ func (r *RabbitMQ) PublishDbEvent(event db.Event, currentTime time.Time) error {
 			}
 		}
 		if !isToday {
-			return fmt.Errorf("event %d is not scheduled for today", event.ID)
+			return fmt.Errorf("event %d is not scheduled for today", event.ID), delay
 		}
 	}
-	if event.ExpectedAt.After(currentTime) {
-		delay = event.ExpectedAt.Sub(currentTime).Milliseconds()
+	if event.ExpectedAt > currentMs {
+		delay = fmt.Sprintf("%d", event.ExpectedAt-currentMs)
 	}
-	if event.ExpectedClock.After(currentTime) {
-		delay = event.ExpectedClock.Sub(currentTime).Milliseconds()
+	if event.ExpectedClock > clockMs {
+		delay = fmt.Sprintf("%d", event.ExpectedClock-clockMs)
+	}
+	return nil, delay
+}
+
+// PublishDbEvent publishes event.Message to event.Exchange
+func (r *RabbitMQ) PublishDbEvent(event db.Event, currentTime time.Time) error {
+	error, delay := GetDelayForEvent(&event, currentTime)
+	if error != nil {
+		return error
 	}
 	headers := amqp.Table{}
-	if delay > 0 {
+	if len(delay) > 0 && delay[0] != '-' {
 		headers["x-delay"] = delay
-		log.Printf("[WARNING] Emitting event %d message with delay: %d ms", event.ID, delay)
+		log.Printf("[WARNING] Emitting event %d message with delay: %s ms", event.ID, delay)
 	}
 
 	err := r.Channel.Publish(event.Exchange, "", false, false, amqp.Publishing{
