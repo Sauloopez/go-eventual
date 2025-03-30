@@ -28,15 +28,11 @@ func sendEventsToRabbitMQ(database *gorm.DB, rabbitMQ *rabbit.RabbitMQ, errorCha
 	events := db.QueryEventsAt(database, &minTime, &maxTime)
 
 	for _, event := range events {
-		error := rabbitMQ.PublishDbEvent(event, minTime)
+		error := rabbitMQ.PublishDbEvent(database, &event, minTime)
 		if error != nil {
 			errorChannel <- error
 		}
-		timesRemaining := event.TimesRemaining - 1
-		if timesRemaining > 0 {
-			database.Model(&db.Event{}).Where("id = ?", event.ID).Update("times_remaining = ?", timesRemaining)
-		}
-		log.Printf("Processed event and deleted: %v", event)
+		log.Printf("[LOG] Processed event: %v", event.ID)
 	}
 	return nil
 }

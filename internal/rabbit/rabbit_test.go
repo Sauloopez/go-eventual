@@ -2,14 +2,13 @@ package rabbit_test
 
 import (
 	"eventual/internal/db"
-	"eventual/internal/rabbit"
 	"fmt"
 	"path"
 	"testing"
 	"time"
 )
 
-func TestGetDelayForEvent(t *testing.T) {
+func TestGetDelay(t *testing.T) {
 	conn, err := db.NewDBConnection(path.Join("..", "..", "data"))
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +36,7 @@ func TestGetDelayForEvent(t *testing.T) {
 		t.Errorf("expected event ID %d, got %d", event.ID, dbEvent.ID)
 	}
 	fmt.Printf("dbEvent.DaySchedules: %v\n", dbEvent.DaySchedules)
-	error, delay := rabbit.GetDelayForEvent(&dbEvent, currentTime)
+	delay := dbEvent.GetDelay(currentTime)
 	fmt.Printf("result delay: %v\n", delay)
 	if delay != fmt.Sprintf("%d", expectedDelay) {
 		t.Errorf("expected delay %v, got %v", expectedDelay, delay)

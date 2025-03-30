@@ -17,7 +17,7 @@ type EventDto struct {
 	Times         int    // expected times to send event
 }
 
-func Transform(dto *EventDto) (*Event, error) {
+func (dto *EventDto) Transform() (*Event, error) {
 	modelInstance := Event{}
 	// validate not empty message
 	if dto.Message == "" {
@@ -46,7 +46,7 @@ func Transform(dto *EventDto) (*Event, error) {
 	if dto.ExpectedClock != "" {
 		expectedClock, err := time.Parse(time.TimeOnly, dto.ExpectedClock)
 		if err != nil {
-			return nil, fmt.Errorf("expected clock must be in format HH:MM: %v", err)
+			return nil, fmt.Errorf("[ERROR] expected clock must be in format HH:MM: %v", err)
 		}
 
 		modelInstance.ExpectedClock = utils.GetClockMs(expectedClock)
@@ -55,7 +55,7 @@ func Transform(dto *EventDto) (*Event, error) {
 	if len(dto.Days) != 0 {
 		for _, day := range dto.Days {
 			if day < 1 || day > 7 {
-				return nil, errors.New("day schedule must be between 1 and 7")
+				return nil, errors.New("[ERROR] day schedule must be between 1 and 7")
 			}
 		}
 	}

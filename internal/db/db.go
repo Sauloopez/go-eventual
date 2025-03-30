@@ -15,6 +15,6 @@ func NewDBConnection(directory string) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	log.Printf("Connected to SQLite database in %s", directory)
+	log.Printf("[LOG] Connected to SQLite database in %s", directory)
 	return db, nil
 }

@@ -30,7 +30,7 @@ func TestCreateEvent(t *testing.T) {
 
 	expectedAt := time.Date(2025, 3, 27, 0, 0, 0, 0, time.UTC)
 
-	modelInstance, err := db.Transform(&dto)
+	modelInstance, err := dto.Transform()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestQueryEventsAt(t *testing.T) {
 
 	var events []db.Event
 	for _, dto := range dtoEvents {
-		instance, error := db.Transform(&dto)
+		instance, error := dto.Transform()
 		if error != nil {
 			t.Fatal(error)
 		}

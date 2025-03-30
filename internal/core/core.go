@@ -61,7 +61,7 @@ func Start(eventual *Eventual) error {
 	go func() {
 		defer close(errChan)
 		defer wg.Done()
-		log.Print("Starting RabbitMQ")
+		log.Print("[LOG] Starting RabbitMQ")
 		for delivery := range consumer {
 			if err := eventual.RabbitMQ.ProcessEventMessage(delivery, eventual.Db); err != nil {
 				errChan <- fmt.Errorf("[ERROR] Processing message: %w", err)
@@ -73,9 +73,8 @@ func Start(eventual *Eventual) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		log.Print("Starting cron job...")
+		log.Print("[LOG] Starting cron job...")
 		if _, err := cron.StartCronJob(eventual.Db, eventual.RabbitMQ, errChan); err != nil {
-			fmt.Printf("err: %+v\n", err)
 			errChan <- fmt.Errorf("[ERROR] Running cron job: %v", err)
 		}
 	}()
@@ -91,7 +90,7 @@ func Start(eventual *Eventual) error {
 
 	go func() {
 		wg.Wait()
-		log.Println("Exiting...")
+		log.Println("[LOG] Exiting...")
 	}()
 
 	return nil

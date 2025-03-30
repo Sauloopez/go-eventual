@@ -42,10 +42,10 @@ func NewRabbitMQ(config *config.RabbitMQConfig) (*RabbitMQ, error) {
 		nil,          // arguments
 	)
 	if err != nil {
-		log.Fatalf("Error declarando la cola: %v", err)
+		log.Fatalf("[ERROR] declaring queue %v", err)
 	}
 
-	log.Printf("Connected to RabbitMQ with user %s", config.User)
+	log.Printf("[LOG] Connected to RabbitMQ in host %s:%s with user %s", config.Host, config.Port, config.User)
 
 	return &RabbitMQ{
 		Connection:   conn,
@@ -58,15 +58,14 @@ func NewRabbitMQ(config *config.RabbitMQConfig) (*RabbitMQ, error) {
 func (r *RabbitMQ) decodeJSONMessage(msg amqp.Delivery, event *db.EventDto) error {
 	err := json.Unmarshal(msg.Body, &event)
 	if err != nil {
-		return fmt.Errorf("error decoding JSON: %v", err)
+		return fmt.Errorf("[ERROR] decoding JSON: %v", err)
 	}
 	return nil
 }
 
-func GetDelayForEvent(event *db.Event, currentTime time.Time) (error, string) {
+// PublishDbEvent publishes event.Message to event.Exchange
+func (r *RabbitMQ) PublishDbEvent(dbConnection *gorm.DB, event *db.Event, currentTime time.Time) error {
 	var delay string
-	currentMs := currentTime.UnixMilli()
-	clockMs := (currentTime.Hour()*3600 + currentTime.Minute()*60 + currentTime.Second()) * 1000
 	if len(event.DaySchedules) > 0 {
 		isToday := false
 		for _, schedule := range event.DaySchedules {
@@ -76,24 +75,11 @@ func GetDelayForEvent(event *db.Event, currentTime time.Time) (error, string) {
 			}
 		}
 		if !isToday {
-			return fmt.Errorf("event %d is not scheduled for today", event.ID), delay
+			fmt.Printf("[LOG] event %d is not scheduled for today", event.ID)
+			return nil
 		}
 	}
-	if event.ExpectedAt > currentMs {
-		delay = fmt.Sprintf("%d", event.ExpectedAt-currentMs)
-	}
-	if event.ExpectedClock > clockMs {
-		delay = fmt.Sprintf("%d", event.ExpectedClock-clockMs)
-	}
-	return nil, delay
-}
-
-// PublishDbEvent publishes event.Message to event.Exchange
-func (r *RabbitMQ) PublishDbEvent(event db.Event, currentTime time.Time) error {
-	error, delay := GetDelayForEvent(&event, currentTime)
-	if error != nil {
-		return error
-	}
+	delay = event.GetDelay(currentTime)
 	headers := amqp.Table{}
 	if len(delay) > 0 && delay[0] != '-' {
 		headers["x-delay"] = delay
@@ -104,6 +90,13 @@ func (r *RabbitMQ) PublishDbEvent(event db.Event, currentTime time.Time) error {
 		Body:    []byte(event.Message),
 		Headers: headers,
 	})
+
+	if err != nil {
+		return err
+	}
+
+	db.AckEventTimes(dbConnection, event)
+
 	return err
 }
 
@@ -132,7 +125,7 @@ func (r *RabbitMQ) ProcessEventMessage(msg amqp.Delivery, dbConnection *gorm.DB)
 		return fmt.Errorf("[ERROR] While decoding JSON: %v", err)
 	}
 
-	modelInstance, err := db.Transform(&event)
+	modelInstance, err := event.Transform()
 	if err != nil {
 		msg.Nack(false, false)
 		return fmt.Errorf("[ERROR] While transforming event to model: %v", err)
