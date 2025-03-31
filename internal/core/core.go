@@ -59,7 +59,6 @@ func Start(eventual *Eventual) error {
 	// RabbitMQ messaging processing goroutine
 	wg.Add(1)
 	go func() {
-		defer close(errChan)
 		defer wg.Done()
 		log.Print("[LOG] Starting RabbitMQ")
 		for delivery := range consumer {
