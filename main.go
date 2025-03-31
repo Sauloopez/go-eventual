@@ -26,7 +26,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := core.Start(eventual)
+		err := eventual.Start()
 		if err != nil {
 			log.Fatalf("Error while running the application: %v", err)
 		}

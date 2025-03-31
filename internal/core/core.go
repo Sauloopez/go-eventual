@@ -47,7 +47,7 @@ func NewEventual() (*Eventual, error) {
 
 }
 
-func Start(eventual *Eventual) error {
+func (eventual *Eventual) Start() error {
 	consumer, err := eventual.RabbitMQ.ConfigureConsumer()
 	if err != nil {
 		return err
