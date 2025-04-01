@@ -1,7 +1,6 @@
 package db
 
 import (
-	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -10,23 +9,24 @@ import (
 // Event represents an event in the database
 type Event struct {
 	gorm.Model
-	ExpectedAt     int64         `gorm:"index"` // Unix milisecond timestamp of the expected date
-	Message        string        `gorm:"not null"`
-	TimesRemaining int           `gorm:"default:1"`
-	DaySchedules   []DaySchedule `gorm:"many2many:event_day_schedules"`
-	Exchange       string        `gorm:"index"`
-	ExpectedClock  int           `gorm:"index"`
+	ExpectedAt       int64         `gorm:"index"` // Unix milisecond timestamp of the expected date
+	Message          string        `gorm:"not null"`
+	TimesRemaining   int           `gorm:"default:1"`
+	DaySchedules     []DaySchedule `gorm:"many2many:event_day_schedules"`
+	Exchange         string        `gorm:"index"`
+	ExpectedClock    int           `gorm:"index"`
+	LastDispatchedAt int64         `gorm:"index"`
 }
 
-func (event *Event) GetDelay(currentTime time.Time) string {
-	var delay string
+func (event *Event) GetDelay(currentTime time.Time) int64 {
+	var delay int64
 	currentMs := currentTime.UnixMilli()
 	clockMs := (currentTime.Hour()*3600 + currentTime.Minute()*60 + currentTime.Second()) * 1000
 	if event.ExpectedAt > currentMs {
-		delay = fmt.Sprintf("%d", event.ExpectedAt-currentMs)
+		delay = event.ExpectedAt - currentMs
 	}
 	if event.ExpectedClock > clockMs {
-		delay = fmt.Sprintf("%d", event.ExpectedClock-clockMs)
+		delay = int64(event.ExpectedClock - clockMs)
 	}
 	return delay
 }

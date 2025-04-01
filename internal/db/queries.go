@@ -65,7 +65,13 @@ func AckEventTimes(conn *gorm.DB, event *Event) {
 		conn.Model(&Event{}).Where("id = ?", event.ID).Update("times_remaining = ?", timesRemaining)
 	}
 	// delete event if times remaining is 0
-	if timesRemaining == 0 {
+	if timesRemaining <= 0 {
 		conn.Delete(&event)
 	}
+}
+
+func AckEventPublished(conn *gorm.DB, event *Event) {
+	dispatchedAt := time.Now().UnixMilli()
+	event.LastDispatchedAt = dispatchedAt
+	conn.Save(&event)
 }

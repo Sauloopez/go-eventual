@@ -15,6 +15,7 @@ type RabbitMQConfig struct {
 	Port     string `env:"RABBITMQ_PORT,required"`
 	Vhost    string `env:"RABBITMQ_VHOST"`
 	Queue    string `env:"RABBITMQ_QUEUE,required"`
+	MaxDelay string `env:"RABBITMQ_MAX_DELAY"`
 }
 
 type Config struct {

@@ -1,11 +1,15 @@
 package rabbit_test
 
 import (
+	"eventual/internal/config"
 	"eventual/internal/db"
+	"eventual/internal/rabbit"
 	"fmt"
 	"path"
 	"testing"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 func TestGetDelay(t *testing.T) {
@@ -38,9 +42,44 @@ func TestGetDelay(t *testing.T) {
 	fmt.Printf("dbEvent.DaySchedules: %v\n", dbEvent.DaySchedules)
 	delay := dbEvent.GetDelay(currentTime)
 	fmt.Printf("result delay: %v\n", delay)
-	if delay != fmt.Sprintf("%d", expectedDelay) {
+	if delay != expectedDelay {
 		t.Errorf("expected delay %v, got %v", expectedDelay, delay)
 	}
 
 	conn.Delete(event)
+}
+
+func TestPublishEvent(t *testing.T) {
+	conn, err := db.NewDBConnection(path.Join("..", "..", "data"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	godotenv.Load(path.Join("..", "..", ".env"))
+	config, err := config.BuildConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dto := db.EventDto{
+		Message:       "test message",
+		ExpectedClock: "10:25:00",
+		ExpectedAt:    "2025-03-27",
+		Exchange:      "test-exchange",
+	}
+
+	expectedAt := time.Date(2025, 3, 27, 10, 0, 0, 0, time.UTC)
+
+	error, instance := db.CreateEventFromDto(conn, &dto)
+
+	rabbit, error := rabbit.NewRabbitMQ(config.RabbitMQConfig)
+	if error != nil {
+		t.Fatal(error)
+	}
+
+	rabbit.PublishDbEvent(conn, instance, expectedAt)
+
+	// retry again to validate max delay
+	rabbit.PublishDbEvent(conn, instance, expectedAt)
+
+	conn.Delete(&instance)
 }
