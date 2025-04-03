@@ -23,7 +23,7 @@ type Config struct {
 	RabbitMQConfig *RabbitMQConfig
 }
 
-func validateStructFields[T any](config *T) (*T, error) {
+func ValidateEnvStruct[T any](config *T) (*T, error) {
 	v := reflect.ValueOf(config).Elem()
 	t := reflect.TypeOf(config).Elem()
 	logger := log.Default()
@@ -63,11 +63,11 @@ func validateStructFields[T any](config *T) (*T, error) {
 }
 
 func BuildConfig() (*Config, error) {
-	rabbitConfig, err := validateStructFields(&RabbitMQConfig{})
+	rabbitConfig, err := ValidateEnvStruct(&RabbitMQConfig{})
 	if err != nil {
 		return nil, err
 	}
-	config, err := validateStructFields(&Config{})
+	config, err := ValidateEnvStruct(&Config{})
 	if err != nil {
 		return nil, err
 	}

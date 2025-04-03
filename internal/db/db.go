@@ -10,7 +10,9 @@ import (
 
 // NewDBConnection creates a new database connection.
 func NewDBConnection(directory string) (*gorm.DB, error) {
-	db, err := gorm.Open(sqlite.Open(path.Join(directory, "events.db")), &gorm.Config{})
+	dbPath := path.Join(directory, "events.db")
+	log.Printf("[LOG] Connecting to database in %s", dbPath)
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,10 @@
+README.md
+.env
+.env.example
+rabbitMQ
+data
+.gitignore
+docker-compose.yml
+docker-compose.override.yml
+LICENSE
+Dockerfile

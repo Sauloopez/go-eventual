@@ -18,13 +18,16 @@ WORKDIR /app
 
 # Copy dumb-init and the compiled binary
 COPY --from=builder /usr/bin/dumb-init /usr/bin/dumb-init
-COPY --from=builder /go/src/eventual/eventual .
+COPY --from=builder /go/src/eventual/eventual /usr/bin/eventual
+COPY --from=builder /go/src/eventual/start.sh /app/start.sh
 
 # Create data directory if it doesn't exist
 RUN mkdir -p /app/data
 
+RUN chmod +x /app/start.sh
+
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 
-CMD ["./eventual"]
+CMD ["/app/start.sh"]
 
 VOLUME ["/app/data"]

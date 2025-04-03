@@ -26,6 +26,7 @@ func sendEventsToRabbitMQ(database *gorm.DB, rabbitMQ *rabbit.RabbitMQ, errorCha
 	minTime := time.Now()
 	maxTime := time.Now().Add(time.Minute)
 	events := db.QueryEventsAt(database, &minTime, &maxTime)
+	log.Printf("Found %d events...", len(events))
 
 	for _, event := range events {
 		error := rabbitMQ.PublishDbEvent(database, &event, minTime)
