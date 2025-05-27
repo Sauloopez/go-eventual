@@ -1,6 +1,6 @@
 module eventual
 
-go 1.23.7
+go 1.23.8
 
 require (
 	github.com/robfig/cron/v3 v3.0.1 // direct

@@ -1,4 +1,4 @@
-FROM golang:1.23.7-alpine AS builder
+FROM golang:1.23.9-alpine AS builder
 
 # Install required build dependencies for CGO
 RUN apk add --no-cache dumb-init gcc musl-dev
