@@ -12,6 +12,7 @@ type EventDto struct {
 	Message       string // event message content
 	ExpectedAt    string // event expected time
 	Exchange      string // event RabbitMQ exchange name send to
+	RoutingKey    string
 	Days          []int8 // event days schedule
 	ExpectedClock string // event expected clock time
 	Times         int    // expected times to send event
@@ -30,6 +31,11 @@ func (dto *EventDto) Transform() (*Event, error) {
 		return nil, errors.New("exchange is required")
 	}
 	modelInstance.Exchange = dto.Exchange
+
+	if dto.RoutingKey == "" {
+		return nil, errors.New("routing key is required")
+	}
+	modelInstance.RoutingKey = dto.RoutingKey
 
 	if dto.ExpectedClock == "" && dto.ExpectedAt == "" {
 		return nil, errors.New("expected clock or expected at is required")

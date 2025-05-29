@@ -14,6 +14,7 @@ type Event struct {
 	TimesRemaining   int           `gorm:"default:1"`
 	DaySchedules     []DaySchedule `gorm:"many2many:event_day_schedules"`
 	Exchange         string        `gorm:"index"`
+	RoutingKey       string        `gorm:"index"`
 	ExpectedClock    int           `gorm:"index"`
 	LastDispatchedAt int64         `gorm:"index"`
 }

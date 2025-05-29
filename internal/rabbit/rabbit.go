@@ -13,11 +13,11 @@ import (
 )
 
 type RabbitMQ struct {
-	Connection   *amqp.Connection
-	Channel      *amqp.Channel
-	QueueName    string
-	consumerName string
-	maxDelay     int64
+	Connection *amqp.Connection
+	maxDelay   int64
+
+	consumer *RabbitMqConsumer
+	producer *RabbitMQProducer
 }
 
 // NewRabbitMQ creates a new connection and channel to RabbitMQ
@@ -26,24 +26,6 @@ func NewRabbitMQ(config *config.RabbitMQConfig) (*RabbitMQ, error) {
 	conn, err := amqp.Dial(url)
 	if err != nil {
 		return nil, err
-	}
-
-	ch, err := conn.Channel()
-	if err != nil {
-		return nil, err
-	}
-
-	// Declare the queue
-	_, err = ch.QueueDeclare(
-		config.Queue, // name of the queue
-		true,         // durable
-		false,        // delete when unused
-		false,        // exclusive
-		false,        // no-wait
-		nil,          // arguments
-	)
-	if err != nil {
-		log.Fatalf("[ERROR] declaring queue %v", err)
 	}
 
 	log.Printf("[LOG] Connected to RabbitMQ in host %s:%s with user %s", config.Host, config.Port, config.User)
@@ -62,12 +44,15 @@ func NewRabbitMQ(config *config.RabbitMQConfig) (*RabbitMQ, error) {
 		maxDelay = time.Hour.Milliseconds() / 2 // half an hour default
 	}
 
+	consumer := NewConsumer(config.Queue, "eventual", config, conn)
+
+	producer := NewProducer(config, conn)
+
 	return &RabbitMQ{
-		Connection:   conn,
-		Channel:      ch,
-		QueueName:    config.Queue,
-		consumerName: "eventual",
-		maxDelay:     maxDelay,
+		Connection: conn,
+		maxDelay:   maxDelay,
+		consumer:   consumer,
+		producer:   producer,
 	}, nil
 }
 
@@ -120,7 +105,7 @@ func (r *RabbitMQ) PublishDbEvent(dbConnection *gorm.DB, event *db.Event, curren
 			return nil
 		}
 
-		error = r.Channel.Publish(event.Exchange, "", false, false, amqp.Publishing{
+		error = r.producer.Publish(event.Exchange, "", false, false, amqp.Publishing{
 			Body:    []byte(event.Message),
 			Headers: headers,
 		})
@@ -137,21 +122,7 @@ func (r *RabbitMQ) PublishDbEvent(dbConnection *gorm.DB, event *db.Event, curren
 }
 
 func (r *RabbitMQ) ConfigureConsumer() (<-chan amqp.Delivery, error) {
-	channel := r.Channel
-	delivery, err := channel.Consume(
-		r.QueueName,    // queue name
-		r.consumerName, // Consumer name
-		false,          // autoAck
-		false,          // exclusive
-		false,          // noLocal
-		false,          // noWait
-		nil,            // args
-	)
-	if err != nil {
-		return nil, fmt.Errorf("[ERROR] Unexpected error while configuring consumer: %v", err)
-	}
-
-	return delivery, nil
+	return r.consumer.ConsumeQueue()
 }
 
 func (r *RabbitMQ) ProcessEventMessage(msg amqp.Delivery, dbConnection *gorm.DB) error {
@@ -175,7 +146,12 @@ func (r *RabbitMQ) ProcessEventMessage(msg amqp.Delivery, dbConnection *gorm.DB)
 }
 
 // Close closes the connection and channel
-func (r *RabbitMQ) Close() {
-	r.Channel.Close()
-	r.Connection.Close()
+func (r *RabbitMQ) Close() error {
+	var err error
+	err = r.producer.Close()
+	if err != nil {
+		return err
+	}
+	err = r.consumer.Close()
+	return err
 }
