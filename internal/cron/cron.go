@@ -1,33 +1,42 @@
 package cron
 
 import (
+	"context"
 	"eventual/internal/db"
 	"eventual/internal/rabbit"
 	"log"
 	"time"
 
-	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 )
 
-func StartCronJob(db *gorm.DB, rabbitMQ *rabbit.RabbitMQ, errorChannel chan<- error) (*cron.Cron, error) {
-	c := cron.New()
-	_, err := c.AddFunc("@every 1m", func() {
-		sendEventsToRabbitMQ(db, rabbitMQ, errorChannel)
-	})
-	if err != nil {
-		return nil, err
+func StartJob(ctx context.Context, db *gorm.DB, rabbitMQ *rabbit.RabbitMQ, errorChannel chan<- error) error {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	// use custom scheduler with while loop
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			err := sendEventsToRabbitMQ(db, rabbitMQ, errorChannel)
+			if err != nil {
+				errorChannel <- err
+			}
+		}
 	}
-	c.Start()
-	return c, nil
 }
 
 func sendEventsToRabbitMQ(database *gorm.DB, rabbitMQ *rabbit.RabbitMQ, errorChannel chan<- error) error {
 	minTime := time.Now()
 	maxTime := time.Now().Add(time.Minute)
 	events := db.QueryEventsAt(database, &minTime, &maxTime)
-	log.Printf("Found %d events...", len(events))
+	lenEvents := len(events)
 
+	if lenEvents <= 0 {
+		return nil
+	}
+	log.Printf("Found %d events...", lenEvents)
 	for _, event := range events {
 		error := rabbitMQ.PublishDbEvent(database, &event, minTime)
 		if error != nil {

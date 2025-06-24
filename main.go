@@ -1,11 +1,11 @@
 package main
 
 import (
+	"context"
 	"eventual/internal/core"
 	"log"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 )
 
@@ -15,10 +15,9 @@ func migrate() {
 		log.Fatal(err)
 	}
 }
-
 func main() {
 	if len(os.Args) != 2 {
-		log.Fatal("Not Command Provided. Commands: migrate, start")
+		log.Fatal("No command provided. Commands: migrate, start")
 		return
 	}
 
@@ -27,43 +26,38 @@ func main() {
 	switch command {
 	case "migrate":
 		migrate()
-		break
 	case "start":
-		eventual, err := core.NewEventual()
+		// context for cancel control
+		ctx, cancel := context.WithCancel(context.Background())
+		// inject context in eventual
+		eventual, err := core.NewEventual(ctx)
+		// handle initialization errors
 		if err != nil {
-			panic(err)
+			log.Fatalf("Failed to initialize: %v", err)
 		}
+		defer cancel()
 
-		var wg sync.WaitGroup
-
+		// Capture Ctrl + C and SIGTERM signals
 		signalChan := make(chan os.Signal, 1)
 		signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
-		exitChan := make(chan bool)
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			err := eventual.Start()
-			if err != nil {
-				log.Fatalf("Error while running the application: %v", err)
-			}
-		}()
-
+		// listen for signals and cancel context
 		go func() {
 			<-signalChan
-			log.Println("Received shutdown signal. Cleaning up...")
-			exitChan <- true
+			log.Println("[LOG] Received shutdown signal. Cleaning up...")
+			cancel()
 		}()
 
-		<-exitChan
+		// start the service
+		if err := eventual.Start(); err != nil {
+			log.Fatalf("[ERROR] Failed to start: %v", err)
+		}
 
-		log.Println("Waiting for all goroutines to finish...")
-		wg.Wait()
-
-		log.Println("Application shut down gracefully.")
-		break
+		// await to the context being cancelled
+		<-ctx.Done()
+		log.Println("[LOG] Shutdown complete.")
 	default:
+		// handle unknown commands
 		log.Fatalf("Unknown command: %s", command)
 	}
 }

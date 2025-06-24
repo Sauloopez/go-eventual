@@ -1,13 +1,13 @@
 package core
 
 import (
+	"context"
 	"eventual/internal/config"
 	"eventual/internal/cron"
 	"eventual/internal/db"
 	"eventual/internal/rabbit"
 	"fmt"
 	"log"
-	"sync"
 
 	"github.com/joho/godotenv"
 	"gorm.io/gorm"
@@ -16,9 +16,10 @@ import (
 type Eventual struct {
 	RabbitMQ *rabbit.RabbitMQ
 	Db       *gorm.DB
+	Ctx      context.Context
 }
 
-func NewEventual() (*Eventual, error) {
+func NewEventual(ctx context.Context) (*Eventual, error) {
 	logger := log.Default()
 	err := godotenv.Load()
 	if err != nil {
@@ -43,6 +44,7 @@ func NewEventual() (*Eventual, error) {
 	return &Eventual{
 		RabbitMQ: rabbitMq,
 		Db:       db,
+		Ctx:      ctx,
 	}, nil
 
 }
@@ -54,42 +56,44 @@ func (eventual *Eventual) Start() error {
 	}
 
 	errChan := make(chan error)
-	var wg sync.WaitGroup
 
 	// RabbitMQ messaging processing goroutine
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		log.Print("[LOG] Starting RabbitMQ")
-		for delivery := range consumer {
-			if err := eventual.RabbitMQ.ProcessEventMessage(delivery, eventual.Db); err != nil {
-				errChan <- fmt.Errorf("[ERROR] Processing message: %w", err)
+		log.Print("[LOG] Starting RabbitMQ Consumer/Producer...")
+		for {
+			select {
+			case <-eventual.Ctx.Done():
+				log.Print("[LOG] Stopping RabbitMQ")
+				return
+			case delivery, ok := <-consumer:
+				if !ok {
+					return
+				}
+				if err := eventual.RabbitMQ.ProcessEventMessage(delivery, eventual.Db); err != nil {
+					errChan <- fmt.Errorf("[ERROR] Processing message: %w", err)
+				}
 			}
 		}
 	}()
 
 	// Task cron goroutine
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		log.Print("[LOG] Starting cron job...")
-		if _, err := cron.StartCronJob(eventual.Db, eventual.RabbitMQ, errChan); err != nil {
+		log.Print("[LOG] Starting job...")
+		if err := cron.StartJob(eventual.Ctx, eventual.Db, eventual.RabbitMQ, errChan); err != nil {
 			errChan <- fmt.Errorf("[ERROR] Running cron job: %v", err)
 		}
 	}()
 
-	// Error monitoring goroutine
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		for err := range errChan {
-			log.Printf("[ERROR] %v", err)
+		for {
+			select {
+			case <-eventual.Ctx.Done():
+				log.Println("[LOG] Shutting down error monitor...")
+				return
+			case err := <-errChan:
+				log.Printf("[ERROR] %v", err)
+			}
 		}
-	}()
-
-	go func() {
-		wg.Wait()
-		log.Println("[LOG] Exiting...")
 	}()
 
 	return nil
