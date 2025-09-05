@@ -29,7 +29,8 @@ func StartJob(ctx context.Context, db *gorm.DB, rabbitMQ *rabbit.RabbitMQ, error
 
 func sendEventsToRabbitMQ(database *gorm.DB, rabbitMQ *rabbit.RabbitMQ, errorChannel chan<- error) error {
 	minTime := time.Now()
-	maxTime := time.Now().Add(time.Minute)
+	// max ten seconds
+	maxTime := time.Now().Add(time.Second * 10)
 	events := db.QueryEventsAt(database, &minTime, &maxTime)
 	lenEvents := len(events)
 

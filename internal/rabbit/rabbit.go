@@ -142,6 +142,7 @@ func (r *RabbitMQ) ProcessEventMessage(msg amqp.Delivery, dbConnection *gorm.DB)
 		msg.Nack(false, false)
 		return fmt.Errorf("[ERROR] While saving event to database: %v", err)
 	}
+	msg.Ack(true)
 	return nil
 }
 
