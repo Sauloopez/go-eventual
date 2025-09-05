@@ -41,7 +41,7 @@ func NewRabbitMQ(config *config.RabbitMQConfig) (*RabbitMQ, error) {
 			return nil, fmt.Errorf("[ERROR] max delay must be positive")
 		}
 	} else {
-		maxDelay = time.Hour.Milliseconds() / 2 // half an hour default
+		maxDelay = time.Second.Milliseconds() * 10 // ten secons
 	}
 
 	connectionHandler := NewConnectionHandler(config, conn)
@@ -107,7 +107,7 @@ func (r *RabbitMQ) PublishDbEvent(dbConnection *gorm.DB, event *db.Event, curren
 			return nil
 		}
 
-		error = r.producer.Publish(event.Exchange, "", false, false, amqp.Publishing{
+		error = r.producer.Publish(event.Exchange, event.RoutingKey, false, false, amqp.Publishing{
 			Body:    []byte(event.Message),
 			Headers: headers,
 		})
