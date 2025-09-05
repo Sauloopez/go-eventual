@@ -13,8 +13,8 @@ import (
 )
 
 type RabbitMQ struct {
-	Connection *amqp.Connection
-	maxDelay   int64
+	connectionHandler *ConnectionHandler
+	maxDelay          int64
 
 	consumer *RabbitMqConsumer
 	producer *RabbitMQProducer
@@ -44,15 +44,17 @@ func NewRabbitMQ(config *config.RabbitMQConfig) (*RabbitMQ, error) {
 		maxDelay = time.Hour.Milliseconds() / 2 // half an hour default
 	}
 
-	consumer := NewConsumer(config.Queue, "eventual", config, conn)
+	connectionHandler := NewConnectionHandler(config, conn)
 
-	producer := NewProducer(config, conn)
+	consumer := NewConsumer(config.Queue, "eventual", connectionHandler)
+
+	producer := NewProducer(connectionHandler)
 
 	return &RabbitMQ{
-		Connection: conn,
-		maxDelay:   maxDelay,
-		consumer:   consumer,
-		producer:   producer,
+		connectionHandler: connectionHandler,
+		maxDelay:          maxDelay,
+		consumer:          consumer,
+		producer:          producer,
 	}, nil
 }
 
@@ -154,5 +156,6 @@ func (r *RabbitMQ) Close() error {
 		return err
 	}
 	err = r.consumer.Close()
+	err = r.connectionHandler.Close()
 	return err
 }

@@ -1,7 +1,6 @@
 package rabbit
 
 import (
-	"eventual/internal/config"
 	"fmt"
 	"log"
 
@@ -9,26 +8,25 @@ import (
 )
 
 type RabbitMqConsumer struct {
-	connectionHandler *ConnectionHandler
+	channelHandler *ChannelHandler
 
 	queueName     string
 	consumerName  string
 	queueDeclared bool
 }
 
-func NewConsumer(queueName string, consumerName string, config *config.RabbitMQConfig, connection *amqp.Connection) *RabbitMqConsumer {
-	connectionHandler := NewConnectionHandler(config, connection)
+func NewConsumer(queueName string, consumerName string, connectionHandler *ConnectionHandler) *RabbitMqConsumer {
 	return &RabbitMqConsumer{
-		connectionHandler: connectionHandler,
-		queueName:         queueName,
-		consumerName:      consumerName,
+		channelHandler: NewChannelHandler(connectionHandler),
+		queueName:      queueName,
+		consumerName:   consumerName,
 	}
 }
 
 func (consumer *RabbitMqConsumer) getChannel() (*amqp.Channel, error) {
 	var err error
 	log.Print("[LOG] Getting channel in consumer...")
-	channel, err := consumer.connectionHandler.GetChannel()
+	channel, err := consumer.channelHandler.GetChannel()
 
 	if !consumer.queueDeclared {
 		log.Printf("[WARNING] Declaring queue in consumer...")
@@ -73,6 +71,6 @@ func (consumer *RabbitMqConsumer) ConsumeQueue() (<-chan amqp.Delivery, error) {
 }
 
 func (p *RabbitMqConsumer) Close() error {
-	log.Print("[LOG] Closgin consumer...")
-	return p.connectionHandler.Close()
+	log.Print("[LOG] Closing consumer...")
+	return p.channelHandler.Close()
 }

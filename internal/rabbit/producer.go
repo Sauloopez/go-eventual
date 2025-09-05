@@ -1,24 +1,23 @@
 package rabbit
 
 import (
-	"eventual/internal/config"
+	"log"
 
 	"github.com/streadway/amqp"
 )
 
 type RabbitMQProducer struct {
-	connectionHandler *ConnectionHandler
+	channelHandler *ChannelHandler
 }
 
-func NewProducer(config *config.RabbitMQConfig, connection *amqp.Connection) *RabbitMQProducer {
-	connectionHandler := NewConnectionHandler(config, connection)
+func NewProducer(connectionHandler *ConnectionHandler) *RabbitMQProducer {
 	return &RabbitMQProducer{
-		connectionHandler: connectionHandler,
+		channelHandler: NewChannelHandler(connectionHandler),
 	}
 }
 
 func (p *RabbitMQProducer) Publish(exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) error {
-	channel, err := p.connectionHandler.GetChannel()
+	channel, err := p.channelHandler.GetChannel()
 	if err != nil {
 		return err
 	}
@@ -27,5 +26,6 @@ func (p *RabbitMQProducer) Publish(exchange string, key string, mandatory bool, 
 }
 
 func (p *RabbitMQProducer) Close() error {
-	return p.connectionHandler.Close()
+	log.Print("[LOG] Closing producer...")
+	return p.channelHandler.Close()
 }
