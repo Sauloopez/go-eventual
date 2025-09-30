@@ -58,10 +58,18 @@ func (dto *EventDto) Transform() (*Event, error) {
 		modelInstance.ExpectedClock = utils.GetClockMs(expectedClock)
 	}
 
+	if dto.Times < -1 {
+		return nil, fmt.Errorf("[ERROR] Times must be major to -1. was: %d (default: 1)", dto.Times)
+	}
+
+	if dto.Times > 0 {
+		modelInstance.TimesRemaining = dto.Times
+	}
+
 	if len(dto.Days) != 0 {
 		for _, day := range dto.Days {
-			if day < 1 || day > 7 {
-				return nil, errors.New("[ERROR] day schedule must be between 1 and 7")
+			if day < 0 || day > 7 {
+				return nil, errors.New("[ERROR] day schedule must be between 0 and 6")
 			}
 		}
 	}

@@ -42,15 +42,19 @@ func CreateEventFromDto(conn *gorm.DB, eventDto *EventDto) (error, *Event) {
 	var error error
 	instance, error := eventDto.Transform()
 	if error != nil {
-		return error, nil
+		return fmt.Errorf("[ERROR] While transforming event to model: %v", error), nil
 	}
+	// rel. schedule days if dto defines
 	if len(eventDto.Days) > 0 {
 		error = relateEventScheduleDays(conn, instance, eventDto.Days)
 		if error != nil {
-			return error, nil
+			return fmt.Errorf("[ERROR] While relating event schedule days to event: %v", error), nil
 		}
 	}
 	error = conn.Create(&instance).Association("DaySchedules").Append(&instance.DaySchedules)
+	if error != nil {
+		return fmt.Errorf("[ERROR] While saving event to database: %v", error), nil
+	}
 	return error, instance
 }
 
@@ -62,7 +66,7 @@ func AckEventTimes(conn *gorm.DB, event *Event) {
 	timesRemaining := event.TimesRemaining - 1
 	// reduce on times remaining > 0
 	if timesRemaining > 0 {
-		conn.Model(&Event{}).Where("id = ?", event.ID).Update("times_remaining = ?", timesRemaining)
+		conn.Model(&Event{}).Where("id = ?", event.ID).Update("times_remaining", timesRemaining)
 	}
 	// delete event if times remaining is 0
 	if timesRemaining <= 0 {

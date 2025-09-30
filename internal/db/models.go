@@ -33,7 +33,7 @@ func (event *Event) GetDelay(currentTime time.Time) int64 {
 }
 
 type DaySchedule struct {
-	DayNumber time.Weekday `gorm:"primaryKey"`
+	DayNumber time.Weekday `gorm:"primaryKey;autoIncrement:false"`
 	Name      string       `gorm:"not null;unique"`
 	Events    []Event      `gorm:"many2many:event_day_schedules"`
 }

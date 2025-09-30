@@ -75,13 +75,13 @@ func (r *RabbitMQ) PublishDbEvent(dbConnection *gorm.DB, event *db.Event, curren
 		if len(event.DaySchedules) > 0 {
 			isToday := false
 			for _, schedule := range event.DaySchedules {
-				isToday = schedule.DayNumber == time.Weekday(currentTime.Day())
+				isToday = schedule.DayNumber == currentTime.Weekday()
 				if isToday {
 					break
 				}
 			}
 			if !isToday {
-				fmt.Printf("[LOG] event %d is not scheduled for today", event.ID)
+				log.Printf("[LOG] event %d is not scheduled for today", event.ID)
 				return nil
 			}
 		}
@@ -89,12 +89,12 @@ func (r *RabbitMQ) PublishDbEvent(dbConnection *gorm.DB, event *db.Event, curren
 		delay = event.GetDelay(currentTime)
 		// validate delay not major to maxDelay
 		if delay > r.maxDelay {
-			fmt.Printf("[LOG] delay %d is greater than maxDelay %d", delay, r.maxDelay)
+			log.Printf("[LOG] delay %d is greater than maxDelay %d", delay, r.maxDelay)
 			return nil
 		}
 		// check if LastDispatchedAt is within maxDelay time range
 		if event.LastDispatchedAt != 0 && currentTime.UnixMilli()-event.LastDispatchedAt <= r.maxDelay {
-			fmt.Printf("[LOG] event %d has been dispatched within maxDelay", event.ID)
+			log.Printf("[LOG] event %d has been dispatched within maxDelay", event.ID)
 			return nil
 		}
 		headers := amqp.Table{}
@@ -129,21 +129,21 @@ func (r *RabbitMQ) ConfigureConsumer() (<-chan amqp.Delivery, error) {
 
 func (r *RabbitMQ) ProcessEventMessage(msg amqp.Delivery, dbConnection *gorm.DB) error {
 	event := db.EventDto{}
-	if err := r.decodeJSONMessage(msg, &event); err != nil {
+	var error error
+	if error = r.decodeJSONMessage(msg, &event); error != nil {
 		msg.Nack(false, false)
-		return fmt.Errorf("[ERROR] While decoding JSON: %v", err)
+		return fmt.Errorf("[ERROR] While decoding JSON: %v", error)
 	}
 
-	modelInstance, err := event.Transform()
-	if err != nil {
+	error, saved := db.CreateEventFromDto(dbConnection, &event)
+
+	if error != nil {
 		msg.Nack(false, false)
-		return fmt.Errorf("[ERROR] While transforming event to model: %v", err)
+		return error
 	}
 
-	if err := dbConnection.Model(&db.Event{}).Create(modelInstance).Error; err != nil {
-		msg.Nack(false, false)
-		return fmt.Errorf("[ERROR] While saving event to database: %v", err)
-	}
+	log.Printf("[LOG] Event %d has been saved to database. Message: %s", saved.ID, saved.Message)
+
 	msg.Ack(true)
 	return nil
 }

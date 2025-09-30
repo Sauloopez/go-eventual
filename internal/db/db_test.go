@@ -21,26 +21,25 @@ func TestCreateEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	day := int8(time.Now().Weekday())
+
+	fmt.Printf("Scheduling test event at day %d /n", day)
+
 	dto := db.EventDto{
 		Message:       "test message",
 		ExpectedClock: "10:25:00",
-		ExpectedAt:    "2025-03-27",
 		Exchange:      "test-exchange",
+		RoutingKey:    "test-routing-key",
+		Days:          []int8{day},
 	}
 
-	expectedAt := time.Date(2025, 3, 27, 0, 0, 0, 0, time.UTC)
-
-	modelInstance, err := dto.Transform()
-	if err != nil {
-		t.Fatal(err)
+	error, saved := db.CreateEventFromDto(conn, &dto)
+	if error != nil {
+		t.Fatal(error)
 	}
 
-	if expectedAt.UnixMilli() != modelInstance.ExpectedAt {
-		t.Errorf("Expected %v, got %v", expectedAt, modelInstance.ExpectedAt)
-	}
-
-	data := conn.Create(&modelInstance)
-	fmt.Printf("data: %v\n", data)
+	fmt.Printf("data: %v\n", saved)
 }
 
 func TestQueryEventsAt(t *testing.T) {
