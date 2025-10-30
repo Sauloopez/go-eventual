@@ -59,17 +59,23 @@ func TestPublishEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	expectedAt := time.Now().Add(time.Second * 10)
 
 	dto := db.EventDto{
 		Message:       "test message",
-		ExpectedClock: "10:25:00",
-		ExpectedAt:    "2025-03-27",
+		ExpectedClock: expectedAt.Format(time.TimeOnly),
+		ExpectedAt:    expectedAt.Format(time.DateOnly),
 		Exchange:      "test-exchange",
+		Days:          []int8{int8(expectedAt.Weekday()) + 2},
+		RoutingKey:    "test-exchange",
 	}
 
-	expectedAt := time.Date(2025, 3, 27, 10, 0, 0, 0, time.UTC)
-
 	error, instance := db.CreateEventFromDto(conn, &dto)
+
+	if error != nil {
+		fmt.Printf("error: %v\n", error)
+		return
+	}
 
 	rabbit, error := rabbit.NewRabbitMQ(config.RabbitMQConfig)
 	if error != nil {

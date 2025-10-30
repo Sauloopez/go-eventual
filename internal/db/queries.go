@@ -14,7 +14,7 @@ func QueryEventsAt(database *gorm.DB, minTime *time.Time, maxTime *time.Time) []
 	minClockMs := utils.GetClockMs(*minTime)
 
 	database.Model(&Event{}).
-		Preload("DaySchedules", "day_number = ?", minTime.Weekday()).
+		Preload("DaySchedules").
 		Where("(expected_at BETWEEN ? AND ? OR expected_clock BETWEEN ? AND ? ) AND (times_remaining > 0 OR times_remaining = -1)",
 			minTime.UnixMilli(), maxTime.UnixMilli(), minClockMs, maxClockMs).
 		Order("created_at DESC").
